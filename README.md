@@ -112,19 +112,43 @@ than an IGDB one. It's still free.
 ## Pointing the app at a relay
 
 Only if you're running one. **Settings → Network → Relay Key** takes two
-things:
+things: the **address**, and the **shared secret** (the `RELAY_SHARED_SECRET`
+from the relay's `.env` file).
 
-- the **address**, e.g. `https://your-name-here.duckdns.org`, or
-  `http://localhost:8080` if the relay is on this same machine
-- the **shared secret**, which is the `RELAY_SHARED_SECRET` from the relay's
-  `.env` file
+### The address does not have to be a domain
 
-Both are blank in a fresh build. Until both are filled in the app doesn't call
-a relay at all — it doesn't try and fail, it simply doesn't try, so you won't
-see errors for a server you never set up.
+This is the part people over-think. A domain name is only needed if you want to
+reach the relay from *outside* your home. Pick whichever of these describes you:
 
-The relay's own README covers generating that secret and whether you need a
-public hostname at all (you don't).
+| Where the relay runs | What to enter | Needs |
+|---|---|---|
+| **This same machine** | `http://localhost:8080` | nothing |
+| **Another machine on your network** | `http://192.168.1.20:8080` — that machine's local address | port 8080 through its firewall |
+| **Reachable from anywhere** | `https://your-name.duckdns.org` | a domain, HTTPS, and a forwarded port |
+
+The first two are the common cases and the ones to start with. Nothing is
+exposed to the internet, there's no certificate to manage, no router settings,
+and no third-party service involved. If it's just you on one PC, use
+`localhost` and you're done.
+
+Only reach for the third row if you genuinely need the app to work away from
+home — and understand what it means: a port open to the world, a server you're
+responsible for keeping patched, and a shared secret that is the only thing
+standing between the internet and your API keys. The relay's README walks
+through DuckDNS and Caddy if you decide you want it.
+
+To find a machine's local address, run `ipconfig` on it (Windows) or
+`ip addr` / `ifconfig` (Linux, macOS) and look for the `192.168.x.x` or
+`10.x.x.x` one. A router setting called "DHCP reservation" will stop it
+changing on you.
+
+### Until you fill both in
+
+Both fields are blank in a fresh build, and until **both** are set the app
+doesn't call a relay at all — it doesn't try and fail, it simply doesn't try,
+so you won't see errors for a server you never set up. Settings will say
+"Not set up — add a Relay Key below", which is a different thing from the
+server being down.
 
 ---
 

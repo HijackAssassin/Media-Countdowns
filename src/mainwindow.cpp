@@ -4961,8 +4961,13 @@ void MainWindow::ensureRegisteredWithRelay()
 //  no credential of any kind in the app.
 // =============================================================================
 static const char* kReleasesUrl  = "https://github.com/HijackAssassin/MediaCountdownsPublic/releases";
+// V5.4.26 — "Media-Countdowns", the repo's name since it was renamed from
+// "MediaCountdownsPublic". The old URL still answers, but only because GitHub
+// redirects a renamed repo, and that redirect is retired the moment anything
+// else claims the old name — at which point this check would start 404ing and
+// fail silently, which is by design and would make it very hard to notice.
 static const char* kReleasesApi  =
-    "https://api.github.com/repos/HijackAssassin/MediaCountdownsPublic/releases/latest";
+    "https://api.github.com/repos/HijackAssassin/Media-Countdowns/releases/latest";
 
 void MainWindow::checkForUpdates()
 {
@@ -5267,6 +5272,33 @@ void MainWindow::showRelayKeyDialog()
     urlEdit->setPlaceholderText("https://your-server-address");
     urlEdit->setText(settings.value("relayBaseUrl").toString());
     vlay->addWidget(urlEdit);
+
+    // V5.4.26 — spell out that a domain is only one of the options.
+    //
+    // The placeholder above reads like a public hostname is required, and the
+    // setup notes lead with DuckDNS, so it looked as though running your own
+    // relay meant registering a domain and forwarding a port. It doesn't: the
+    // common cases are the relay on this same machine, or on another machine in
+    // the house. Those need no domain, no certificate and nothing exposed to
+    // the internet, and they are what most people should use. Anything a URL
+    // can express works here — the app only ever concatenates a path onto it.
+    // Rich text rather than spaces-as-columns: this label is in the app's
+    // proportional UI font, where padded columns come out ragged. A tiny table
+    // lines them up whatever the font metrics turn out to be.
+    auto* urlHint = new QLabel(
+        "A domain is only needed to reach the server over the internet."
+        "<table style='margin-top:4px;' cellpadding='0' cellspacing='0'>"
+        "<tr><td>On this machine&nbsp;&nbsp;&nbsp;</td>"
+            "<td><code>http://localhost:8080</code></td></tr>"
+        "<tr><td>On your network&nbsp;&nbsp;&nbsp;</td>"
+            "<td><code>http://192.168.1.20:8080</code></td></tr>"
+        "<tr><td>Over the internet&nbsp;&nbsp;&nbsp;</td>"
+            "<td><code>https://your-name.duckdns.org</code></td></tr>"
+        "</table>", dlg);
+    urlHint->setTextFormat(Qt::RichText);
+    urlHint->setWordWrap(true);
+    urlHint->setStyleSheet("color:#777; font-size:11px; background:transparent;");
+    vlay->addWidget(urlHint);
 
     auto* keyLbl = new QLabel("Relay Key:", dlg);
     keyLbl->setStyleSheet("color:#888; font-size:11px; margin-top:6px; background:transparent;");
