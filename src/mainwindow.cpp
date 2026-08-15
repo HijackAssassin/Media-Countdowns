@@ -4974,18 +4974,6 @@ static const char* kReleasesApi  =
 
 void MainWindow::checkForUpdates()
 {
-#ifdef MC_STORE_BUILD
-    // The Store edition never prompts, and this is the whole of its update
-    // logic. The Store updates a Store install itself, and the prompt below
-    // ends in a Download button that opens a GitHub releases page — which
-    // would walk a Store user out of the Store to install a second, unmanaged
-    // copy alongside the packaged one. Returning here still releases the
-    // message-of-the-day gate, which every other early exit also has to do.
-    m_updateCheckDone = true;
-    maybeCheckMotd();
-    return;
-#endif
-
     // Offline mode — nothing to check, so the message of the day is free to
     // go as soon as the tiles are in.
     if (!RelayConfig::relayCheckboxValue()) { m_updateCheckDone = true; maybeCheckMotd(); return; }
@@ -4997,10 +4985,6 @@ void MainWindow::checkForUpdates()
     // remember, so the check is simply "is the latest tag different from what
     // I am".
     //
-    // V5.4.27 — this used to branch on MC_STORE_BUILD and ask the relay's
-    // /version instead. It no longer needs to: the Store edition returns at the
-    // top of this function and never reaches here, because a Store install is
-    // updated by the Store. One channel, one source, no dead branch.
     auto* nam = new QNetworkAccessManager(this);
     QNetworkRequest req{QUrl(kReleasesApi)};
     // GitHub's API refuses requests with no User-Agent, and asking for this
@@ -5023,7 +5007,6 @@ void MainWindow::checkForUpdates()
         // A release tag, however it was written: "v5.4.13", "5.4.13",
         // "V5.4.13 - hotfix". Take the first three-part number in it and
         // ignore the rest, so a tag with a name on the end still compares.
-        // (The Store edition never gets here — see the top of this function.)
         QString latest = obj["tag_name"].toString().trimmed();
         if (latest.isEmpty()) latest = obj["name"].toString().trimmed();
         static const QRegularExpression verRe(R"((\d+)\.(\d+)(?:\.(\d+))?)");
