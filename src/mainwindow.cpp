@@ -4960,7 +4960,10 @@ void MainWindow::ensureRegisteredWithRelay()
 //  releases are readable by anyone, so the check works for every install with
 //  no credential of any kind in the app.
 // =============================================================================
-static const char* kReleasesUrl  = "https://github.com/HijackAssassin/MediaCountdownsPublic/releases";
+// Both of these follow the repo's current name. The old "MediaCountdownsPublic"
+// URLs still answer through GitHub's rename redirect, but that redirect is
+// retired the moment anything else claims the old name.
+static const char* kReleasesUrl  = "https://github.com/HijackAssassin/Media-Countdowns/releases";
 // V5.4.26 — "Media-Countdowns", the repo's name since it was renamed from
 // "MediaCountdownsPublic". The old URL still answers, but only because GitHub
 // redirects a renamed repo, and that redirect is retired the moment anything
@@ -4971,38 +4974,40 @@ static const char* kReleasesApi  =
 
 void MainWindow::checkForUpdates()
 {
+#ifdef MC_STORE_BUILD
+    // The Store edition never prompts, and this is the whole of its update
+    // logic. The Store updates a Store install itself, and the prompt below
+    // ends in a Download button that opens a GitHub releases page — which
+    // would walk a Store user out of the Store to install a second, unmanaged
+    // copy alongside the packaged one. Returning here still releases the
+    // message-of-the-day gate, which every other early exit also has to do.
+    m_updateCheckDone = true;
+    maybeCheckMotd();
+    return;
+#endif
+
     // Offline mode — nothing to check, so the message of the day is free to
     // go as soon as the tiles are in.
     if (!RelayConfig::relayCheckboxValue()) { m_updateCheckDone = true; maybeCheckMotd(); return; }
 
     static const QString kCurrentVersion = MC_APP_VERSION;
 
-    // V5.4.13 — which source answers "is there a newer version" depends on how
-    // this copy was distributed, because the two channels release at different
-    // moments and neither can speak for the other:
+    // The public releases repo answers "is there a newer version": a build
+    // exists the instant it is published there, with no separate step to
+    // remember, so the check is simply "is the latest tag different from what
+    // I am".
     //
-    //   GitHub build  → the public releases repo. A build exists the instant
-    //                   it is published there, with no separate step to
-    //                   remember, so the check is simply "is the latest tag
-    //                   different from what I am".
-    //   Store build   → the relay's /version, set from the dashboard. The
-    //                   Store's own review delay means the relay is the only
-    //                   thing that knows when a build actually reached users,
-    //                   and the Store handles the download itself.
-    //
-    // MC_STORE_BUILD is defined by the Store packaging build only; a normal
-    // build of this source is a GitHub build.
+    // V5.4.27 — this used to branch on MC_STORE_BUILD and ask the relay's
+    // /version instead. It no longer needs to: the Store edition returns at the
+    // top of this function and never reaches here, because a Store install is
+    // updated by the Store. One channel, one source, no dead branch.
     auto* nam = new QNetworkAccessManager(this);
-#ifdef MC_STORE_BUILD
-    QNetworkRequest req(QUrl(RelayConfig::baseUrl() + "/version"));
-#else
     QNetworkRequest req{QUrl(kReleasesApi)};
     // GitHub's API refuses requests with no User-Agent, and asking for this
     // media type pins the response shape rather than tracking whatever the
     // default becomes.
     req.setRawHeader("User-Agent", QByteArray("MediaCountdowns/") + MC_APP_VERSION);
     req.setRawHeader("Accept", "application/vnd.github+json");
-#endif
     QNetworkReply* reply = nam->get(req);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, nam]() {
@@ -5015,12 +5020,10 @@ void MainWindow::checkForUpdates()
         if (reply->error() != QNetworkReply::NoError) { finished(); return; }   // unreachable — fail silently, no nagging
 
         QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
-#ifdef MC_STORE_BUILD
-        QString latest = obj["version"].toString().trimmed();
-#else
         // A release tag, however it was written: "v5.4.13", "5.4.13",
         // "V5.4.13 - hotfix". Take the first three-part number in it and
         // ignore the rest, so a tag with a name on the end still compares.
+        // (The Store edition never gets here — see the top of this function.)
         QString latest = obj["tag_name"].toString().trimmed();
         if (latest.isEmpty()) latest = obj["name"].toString().trimmed();
         static const QRegularExpression verRe(R"((\d+)\.(\d+)(?:\.(\d+))?)");
@@ -5029,7 +5032,6 @@ void MainWindow::checkForUpdates()
                      ? QString("%1.%2.%3").arg(m.captured(1), m.captured(2),
                                                m.captured(3).isEmpty() ? "0" : m.captured(3))
                      : QString();
-#endif
         if (latest.isEmpty()) { finished(); return; }
 
         auto parseVer = [](const QString& v) -> QList<int> {
@@ -5051,7 +5053,8 @@ void MainWindow::checkForUpdates()
 
         auto* dlg = new QDialog(this, Qt::Dialog);
         dlg->setWindowTitle("Update Available");
-        dlg->setFixedWidth(400);
+        // Width is set AFTER the buttons exist, from what they actually need —
+        // see the note below the button row. It used to be a fixed 400px.
         dlg->setAttribute(Qt::WA_DeleteOnClose);
         dlg->setStyleSheet("QDialog { background:#1e1e1e; }");
 
@@ -5108,6 +5111,36 @@ void MainWindow::checkForUpdates()
         btnRow->addWidget(skipBtn);
         btnRow->addStretch();
         vlay->addLayout(btnRow);
+
+        // V5.4.27 — the dialog is sized to its buttons, instead of the buttons
+        // being crushed to fit the dialog.
+        //
+        // Three buttons on one row, one of them a whole sentence, need roughly
+        // 530px. The dialog was pinned at 400, and Qt resolves that by eliding
+        // the labels — so the third button read as "Don't tell me again f…"
+        // and there was genuinely no way to tell what it did.
+        //
+        // Measured rather than replaced with a bigger number, because a bigger
+        // number is the same bug waiting on a font change, a display scale or a
+        // longer version string. This is the approach showMissedReleases()
+        // already uses for its longest line: ask the widgets what they need.
+        //
+        // ensurePolished() first — a button's sizeHint only accounts for the
+        // stylesheet padding set above once the style has actually been applied
+        // to it, and without this the hints come back too small.
+        for (QPushButton* b : {okBtn, laterBtn, skipBtn}) b->ensurePolished();
+        const QMargins mg = vlay->contentsMargins();
+        const int needed = mg.left() + mg.right()
+                         + okBtn->sizeHint().width()
+                         + laterBtn->sizeHint().width()
+                         + skipBtn->sizeHint().width()
+                         + btnRow->spacing() * 2;
+        // Minimum, not fixed: the title label may want more than the buttons do
+        // for a long version string, and it should be allowed to have it.
+        // Capped so a pathological font can't produce a dialog wider than the
+        // screen — at that point the labels would wrap rather than be cut.
+        const int screenLimit = screen() ? int(screen()->availableGeometry().width() * 0.9) : 1400;
+        dlg->setMinimumWidth(qMin(qMax(400, needed), screenLimit));
 
         // Blocks here until the prompt is dismissed, which is exactly the
         // point: the message of the day is not allowed out until it is.

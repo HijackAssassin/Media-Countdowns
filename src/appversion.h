@@ -12,4 +12,4 @@
 //  Bump this on release, and both the update check and the version stamped on
 //  a bug report follow automatically.
 // =============================================================================
-#define MC_APP_VERSION "5.4.26"
+#define MC_APP_VERSION "5.4.27"
