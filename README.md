@@ -183,3 +183,7 @@ re-fetches artwork on a 150-day cycle rather than keeping it forever.
 
 None yet — all rights reserved for now. You're welcome to build it and run it
 for yourself.
+
+## Microsoft Store Link
+
+ms-windows-store://pdp/?productid=9N1DK1NQJQWR
